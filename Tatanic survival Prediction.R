@@ -7,7 +7,7 @@ library(stringr)
 
 
 data$Parch[data$Parch !=0]<-1
-summar(data)
+summary(data)
 
 col_names<-c("Survived","Pclass","Sex","Age","Embarked","Parch")
 data[,col_names] <- lapply(data[,col_names], factor)
@@ -63,3 +63,31 @@ names(rocCurve)
 rocCurve$thresholds
 rocCurve$sensitivities
 
+#Random Forest
+set.seed(1)
+rfTune<-train(Survived~.,data=training,method="rf",
+              trControl=trainControl(method="cv",number=5),metric="Kappa",
+              prox=TRUE,allowParallel=TRUE)
+
+rfTune
+plot(rfTune)
+rfTune$bestTune
+
+
+#prediction for randomForest
+
+pr_ct <- predict(rfTune, newdata = test)
+
+
+ct_CM <- confusionMatrix(pr_ct, test$Survived, positive = "1")
+ct_CM
+library(pROC)
+probsTrain<-predict(rfTune,training,type = "prob")
+rocCurve<-roc(response=training$Survived,predictor=probsTrain[,"1"],
+              levels = levels(as.factor(training$Survived)))
+
+plot(rocCurve,print.thres="best")
+
+names(rocCurve)
+rocCurve$thresholds
+rocCurve$sensitivities
