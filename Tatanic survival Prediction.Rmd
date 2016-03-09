@@ -1,0 +1,201 @@
+---
+title: "Tatanic survival prediction"
+author: "Xinjun Zhang"
+date: "Mar. 14th, 2016"
+output: ioslides_presentation
+
+
+---
+
+## Tatanic tragedy
+![Sinking of the Tatanic, 15 April 1912](titanic-sink.jpg)
+
+*Sinking of the Tatanic, 15 April 1912*               
+
+
+<span style="color:red">**1514**</span> out of 2224 were dead
+
+## Data Overview
+
+```{r, echo = F }
+
+data<-read.csv("Tatanic/train.csv",na.strings=c("","NA"))
+testdata<-read.csv("Tatanic/test.csv",na.strings=c("","NA"))
+
+str(data)
+```
+
+```{r, echo=FALSE, results='hide',message=FALSE}
+library(dplyr)
+library(caret)
+library(rpart)
+library(stringr)
+library(rattle)
+library(pROC)
+library(randomForest)
+library(ggplot2) # visualization
+library(ggthemes) # visualization
+library(scales)
+```
+
+## Preprocessing the data
+-change column "Parch" and "Sibsp" to 0 or 1 
+            
+-change column "Survived", "Pclass", "Sex", "Age", "Embarked", "Parch" to factor
+           
+-change column "Age","Fare" to number       
+         
+-remove column "ID","Name","Ticket","Cabin" (too many NAs)    
+               
+-remove NAs in all other column
+
+## Summary of preprocessed data
+```{r, echo=F, comment=NA}
+data$Parch[data$Parch !=0]<-1
+data$SibSp[data$SibSp !=0]<-1
+
+col_names<-c("Survived","Pclass","Sex","Age","Embarked","Parch", "SibSp")
+data[,col_names] <- lapply(data[,col_names], factor)
+data$Age<-as.numeric(data$Age)
+data$Fare<-as.numeric(data$Fare)
+
+data<-data[,-c(1,4,9,11)]
+data<-na.omit(data)
+
+summary(data)
+```
+
+## Exploring the dataset: Passenger Class and Fare
+```{r,echo=F}
+
+ggplot(data, aes(x = Embarked, y = Fare, fill = factor(Pclass))) +
+  geom_boxplot() +
+  geom_hline(aes(yintercept=80), 
+    colour='red', linetype='dashed', lwd=2) +
+  scale_y_continuous(labels=dollar_format()) +
+  theme_few()
+
+
+```
+
+## Exploring the dataset:Age 
+```{r,echo=F}
+par(mfrow=c(1,2))
+hist(data$Age, freq=F, main='Age', 
+  col='darkgreen', ylim=c(0,0.04))
+hist(data$Fare, freq=F, main='Fare', 
+  col='lightgreen', ylim=c(0,0.04))
+```
+
+## Exploring the dataset: Age
+```{r,echo=F}
+ggplot(data, aes(Age, fill = factor(Survived))) + 
+  geom_histogram() + 
+  # I include Sex since we know (a priori) it's a significant predictor
+  facet_grid(.~Sex) + 
+  theme_few()
+```
+
+
+```{r, echo=F,results='hide',message=FALSE}
+set.seed(96)
+inTrain <- createDataPartition(data$Survived, p = .8,
+                               list = FALSE,
+                               times = 1)
+training <- data[inTrain,]
+test <- data[-inTrain,]
+
+rtGrid <- expand.grid(cp=seq(0.001, 0.2, by = 0.001))
+# alpha is between 0 and 1: 0 (ridge), 1 (lasso).
+
+########################################## training model
+ctrl <- trainControl(method = "cv", number = 10,
+                     verboseIter = T)
+set.seed(1)
+rtTune <- train(Survived~ ., data = training,   
+                method = "rpart", 
+                tuneGrid = rtGrid,
+                metric='Kappa',
+                trControl = ctrl)
+
+```
+
+
+##rpart training
+```{r}
+plot(rtTune)
+rtTune$bestTune
+
+```
+
+## FancyRpartPlot
+```{r}
+fancyRpartPlot(rtTune$finalModel)
+
+```
+
+## Test Data Prediction
+
+```{r, echo=FALSE, font_adjustment: -3}
+pr_rt <- predict(rtTune, newdata = test)
+rt_CM <- confusionMatrix(pr_rt, test$Survived, positive = "1")
+rt_CM
+```
+
+## ROC Curve
+```{r, echo=F}
+
+probsTrain<-predict(rtTune,training,type = "prob")
+rocCurve<-roc(response=training$Survived,predictor=probsTrain[,"1"],
+              levels = levels(as.factor(training$Survived)))
+
+plot(rocCurve,print.thres="best")
+
+names(rocCurve)
+rocCurve$thresholds
+rocCurve$sensitivities
+```
+
+## What if use random forest training
+```{r}
+set.seed(1)
+rfTune<-randomForest(Survived~.,data=data,importance=T,proximity=T)
+plot(rfTune)
+
+```
+
+## Rank importance
+```{r}
+varImpPlot(rfTune,main="Importance of Random Forest Training",
+           cex = par("cex"), pch = 21, gpch = 21, bg = par("bg"),
+         color = par("fg"), gcolor = par("fg"), lcolor = "gray")
+```
+
+## Test Data Prediction
+```{r,echo=F, comment=NA}
+#prediction for randomForest
+
+pr_rf <- predict(rfTune, newdata = test)
+rf_CM <- confusionMatrix(pr_rf, test$Survived, positive = "1")
+rf_CM
+
+```
+
+
+## ROC Curve
+```{r, echo=F}
+
+probsTrain<-predict(rfTune,training,type = "prob")
+rocCurve<-roc(response=training$Survived,predictor=probsTrain[,"1"],
+              levels = levels(as.factor(training$Survived)))
+
+plot(rocCurve,print.thres="best")
+
+names(rocCurve)
+rocCurve$thresholds
+rocCurve$sensitivities
+
+```
+
+
+

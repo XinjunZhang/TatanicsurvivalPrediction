@@ -4,15 +4,17 @@ library(dplyr)
 library(caret)
 library(rpart)
 library(stringr)
+library(rattle)
 
 
 data$Parch[data$Parch !=0]<-1
+data$SibSp[data$SibSp !=0]<-1
 summary(data)
 
-col_names<-c("Survived","Pclass","Sex","Age","Embarked","Parch")
+col_names<-c("Survived","Pclass","Sex","Age","Embarked","Parch", "SibSp")
 data[,col_names] <- lapply(data[,col_names], factor)
 data$Age<-as.numeric(data$Age)
-data$SibSp<-as.numeric(data$SibSp)
+
 summary(data)
 
 data<-data[,-c(1,4,9,11)]
