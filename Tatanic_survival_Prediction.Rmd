@@ -78,7 +78,7 @@ ggplot(data, aes(x = Embarked, y = Fare, fill = factor(Pclass))) +
 
 ```
 
-## Exploring the dataset:Age 
+## Exploring the dataset: Age 
 ```{r,echo=F}
 par(mfrow=c(1,2))
 hist(data$Age, freq=F, main='Age', 
@@ -87,11 +87,25 @@ hist(data$Fare, freq=F, main='Fare',
   col='lightgreen', ylim=c(0,0.04))
 ```
 
-## Exploring the dataset: Age
+## Exploring the dataset: Women and Children First?
 ```{r,echo=F}
 ggplot(data, aes(Age, fill = factor(Survived))) + 
+  geom_histogram(binwidth = 2) + 
+  facet_grid(.~Sex) + 
+  theme_few()
+```
+
+## Exploring the dataset: Women First?
+```{r}
+ggplot(data, aes(x=Sex,  fill=Survived)) +
+geom_bar(position="dodge", colour="black") +
+scale_fill_brewer(palette="Pastel1")
+```
+
+## Exploring the dataset:Fare 
+```{r,echo=F}
+ggplot(data, aes(Fare, fill = factor(Survived))) + 
   geom_histogram() + 
-  # I include Sex since we know (a priori) it's a significant predictor
   facet_grid(.~Sex) + 
   theme_few()
 ```
@@ -105,10 +119,8 @@ inTrain <- createDataPartition(data$Survived, p = .8,
 training <- data[inTrain,]
 test <- data[-inTrain,]
 
-rtGrid <- expand.grid(cp=seq(0.001, 0.2, by = 0.001))
-# alpha is between 0 and 1: 0 (ridge), 1 (lasso).
+rtGrid <- expand.grid(cp=seq(0.001, 0.2, by = 0.003))
 
-########################################## training model
 ctrl <- trainControl(method = "cv", number = 10,
                      verboseIter = T)
 set.seed(1)
@@ -159,16 +171,14 @@ rocCurve$sensitivities
 ## What if use random forest training
 ```{r}
 set.seed(1)
-rfTune<-randomForest(Survived~.,data=data,importance=T,proximity=T)
+rfTune<-randomForest(Survived~.,data=training,importance=T,proximity=T)
 plot(rfTune)
 
 ```
 
 ## Rank importance
 ```{r}
-varImpPlot(rfTune,main="Importance of Random Forest Training",
-           cex = par("cex"), pch = 21, gpch = 21, bg = par("bg"),
-         color = par("fg"), gcolor = par("fg"), lcolor = "gray")
+varImpPlot(rfTune,main="Importance of Random Forest Training")
 ```
 
 ## Test Data Prediction
@@ -197,30 +207,5 @@ rocCurve$sensitivities
 
 ```
 
-
-```{r, echo=F,  results='hide',message=FALSE}
-testdata$Parch[testdata$Parch !=0]<-1
-testdata$SibSp[testdata$SibSp !=0]<-1
-
-col_names<-c("Survived","Pclass","Sex","Age","Embarked","Parch", "SibSp")
-testdata[,col_names] <- lapply(testdata[,col_names], factor)
-testdata$Age<-as.numeric(testdata$Age)
-testdata$Fare<-as.numeric(testdata$Fare)
-
-testdata<-testdata[,-c(1,4,9,11)]
-testdata<-na.omit(testdata)
-
-```
-
-## Predict the test dataset
-```{r}
-prediction <- predict(rfTune, test)
-
-# Save the solution to a dataframe with two columns: PassengerId and Survived (prediction)
-solution <- data.frame(PassengerID = test$PassengerId, Survived = prediction)
-
-# Write the solution to file
-write.csv(solution, file = 'rf_mod_Solution.csv', row.names = F)
-```
 
 
